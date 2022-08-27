@@ -1,0 +1,242 @@
+[extension_name]
+Loot's Tools SAMMI Bridge
+[extension_info]
+This SAMMI extension allows connecting to Loot's Tools Desktop and both hear Streamloots Events from it and tell it to simulate Events, or call the SAMMI Event if the SAMMI EXtension is installed on Loot's Tools.
+Loot's Tools is an Automation Tool centered on, but not limited to, Streamloots.
+
+NOTE: Some things, like installing the SAMMI EXtension on Loot's Tools Desktop or some Events, require Loot's Tools Plus. 
+[insert_external]
+<button type="button" id="cnctbutton" class="btn btn-primary btn-sm mb-2 w-auto ms-3" onclick="connecttolt()">Reconnect to Loot's Tools</button>
+<hr>
+<p>This SAMMI extension allows connecting to Loot's Tools Desktop and both hear Streamloots Events from it and tell it to simulate Events, or call the SAMMI Event if the SAMMI EXtension is installed on Loot's Tools.</p>
+<p>Loot's Tools is an Automation Tool centered on, but not limited to, Streamloots.</p>
+
+<b>NOTE: Some things, like installing the SAMMI EXtension on Loot's Tools Desktop or some Events, require Loot's Tools Plus. </b>
+<hr>
+<h1>Triggers and Trigger Data</h1>
+    <ul>
+        <li><b>LootsToolsStreamlootsCard</b></li>
+        <dd>- user (String)</dd>
+        <dd>- fields (Object)</dd>
+        <dd>- cardName (String)</dd>
+        <dd>- data (Object)</dd>
+        <li><b>LootsToolsStreamlootsPurchase (Needs Loot's Tools Plus)</b></li>
+        <dd>- user (String)</dd>
+        <dd>- packQuantity (Number)</dd>
+        <dd>- collectionName (String)</dd>
+        <dd>- data (Object)</dd>
+        <li><b>LootsToolsStreamlootsGift (Needs Loot's Tools Plus)</b></li>
+        <dd>- user (String)</dd>
+        <dd>- giftee (String)</dd>
+        <dd>- packQuantity (Number)</dd>
+        <dd>- collectionName (String)</dd>
+        <dd>- data (Object)</dd>
+        <li><b>LootsToolsStreamlootsSubscriptionCommunityGift (Needs Loot's Tools Plus)</b></li>
+        <dd>- user (String)</dd>
+        <dd>- packQuantity (Number)</dd>
+        <dd>- collectionName (String)</dd>
+        <dd>- data (Object)</dd>
+        <li><b>LootsToolsStreamlootsSubscription (Needs Loot's Tools Plus)</b></li>
+        <dd>- user (String)</dd>
+        <dd>- data (Object)</dd>
+        <li><b>LootsToolsStreamlootsSubscriptionGift (Needs Loot's Tools Plus)</b></li>
+        <dd>- user (String)</dd>
+        <dd>- giftee (String)</dd>
+        <dd>- data (Object)</dd>
+        <li><b>LootsToolsStreamlootsCommunityGiftSubscription (Needs Loot's Tools Plus)</b></li>
+        <dd>- user (String)</dd>
+        <dd>- data (Object)</dd>
+        <li><b>LootsToolsStreamlootsReaction (Needs Loot's Tools Plus)</b></li>
+        <dd>- user (String)</dd>
+        <dd>- reactionName (String)</dd>
+        <dd>- videoUrl or imageUrl (String)</dd>
+        <dd>- data (Object)</dd>
+        <li><b>LootsToolsCustomEvent</b></li>
+        <dd>- name (String)</dd>
+        <dd>- data (Object)</dd>
+    </ul>
+<script>
+    function test() {
+        LootsToolsWS.close()
+        SAMMI.extCommand("Loot's Tools: Trigger Event", 3355443, 52, {
+            event: ['Event to trigger', 18, 0, null, []],
+        });
+    }
+</script>
+[insert_command]
+SAMMI.extCommand("Loot's Tools: Trigger Event", 3355443, 52, {
+	event: ['Event to trigger', 18, 0, null, []],
+});
+[insert_hook]
+case "Loot's Tools: Trigger Event":{
+    eventList = []
+    for (eventNo in eventValues.cEvents) {
+        cEvent = eventValues.cEvents[eventNo]
+        eventList.push({"type": "cEvent", "eventInfo": cEvent})
+    }
+    for (eventNo in eventValues.cards) {
+        card = eventValues.cards[eventNo]
+        eventList.push({"type": "card", "eventInfo": card})
+    }
+    event = eventList[SAMMIJSON.event]
+    console.log(event)
+    if (event.type == "card") {
+        LootsToolsWS.send(JSON.stringify({"testCard": event.eventInfo}))
+    } else if (event.type == "cEvent") {}
+} break
+case "Loot's Tools: Call SAMMI Event":{
+    console.log(SAMMIJSON)
+    id = SAMMIJSON.id
+    eventData = SAMMIJSON.eventData
+    LootsToolsWS.send(JSON.stringify([
+        {
+            "eventName": "sammiEvent",
+            "eventData": {
+                "id": id,
+                "eventData": eventData,
+            },
+        }
+    ]))
+} break
+[insert_script]
+var cards = []
+var eventValues = {"cEvents":[], "cards":[]}
+var cEvents = []
+var LootsToolsWS = false
+function connecttolt() {
+    try {
+        if (LootsToolsWS) {
+            LootsToolsWS.close()
+        }
+    } catch (error) {}
+	LootsToolsWS = (new WebSocket("ws://127.0.0.1:4848"));
+
+	LootsToolsWS.onclose = function (event) {
+        SAMMI.alert("Disconnected from Loot's Tools Desktop")
+	};
+
+	//notice that connection is established
+	LootsToolsWS.onopen = function (event) {
+        LootsToolsWS.send("plsLootsTools")
+        SAMMI.alert("Connected to Loot's Tools Desktop")
+	};
+
+	LootsToolsWS.onmessage = function (event) {
+        try {
+            data = JSON.parse(event.data)
+            // console.log(data)
+            if ("cards" in data) {
+                cards = []
+                eventValues.cards = []
+                for (collectionNo in data.cards) {
+                    collection = data.cards[collectionNo]
+                    cardsList = collection.cards
+                    for (card in cardsList){
+                        card = cardsList[card]
+                        cards.push(card.cardName+" ("+collection.collectionName+")")
+                        eventValues.cards.push([collection.collectionID, card.cardID])
+                    }
+                }
+                SAMMI.extCommand("Loot's Tools: Trigger Event", 3355443, 52, {
+                    event: ['Event to trigger', 18, 0, null, cEvents.concat(cards)],
+                });
+            } else if ("plugins" in data) {
+                cEvents = []
+                eventValues.cEvents = []
+                for (extensionNo in data.plugins) {
+                    extension = data.plugins[extensionNo]
+                    if (extension.pluginID == "sammiEX") {
+                    // if (extension.pluginID == "twitchEX") {
+                        SAMMI.extCommand("Loot's Tools: Call SAMMI Event", 3355443, 52, {
+                            id: ['Identifier', 14, "", 0.5],
+                            eventData: ['Event Data (JSON format)', 0, "", 1],
+                        });
+                    }
+                    // if ("customEvents" in extension) {
+                    //     customEventsList = extension.customEvents
+                    //     for (cEventNo in customEventsList){
+                    //         cEvent = customEventsList[cEventNo]
+                    //         cEvents.push(cEvent.name+" ("+collection.collectionName+")")
+                    //         eventValues.cEvents.push([collection.collectionID, card.cardID])
+                    //     }
+                    // }
+                }
+                // SAMMI.extCommand("Loot's Tools: Trigger Event", 3355443, 52, {
+                //     event: ['Event to trigger', 18, 0, null, cEvents.concat(cards)],
+                // });
+            } else if ("gift" in data) {
+                gift = data.gift
+                user = gift.user
+                giftee = gift.giftee
+                data = gift.data
+                packQuantity = gift.packQuantity
+                collectionName = (data.fields.length > 3) ? data.fields[0].value : ""
+                SAMMI.triggerExt('LootsToolsStreamlootsGift', {"user": user, "giftee": giftee, "data": data, "packQuantity": packQuantity})
+            } else if ("purchase" in data) {
+                purchase = data.purchase
+                user = purchase.user
+                data = purchase.data
+                packQuantity = purchase.packQuantity
+                collectionName = (data.fields.length > 2) ? data.fields[0].value : ""
+                SAMMI.triggerExt('LootsToolsStreamlootsPurchase', {"user": user, "data": data, "packQuantity": packQuantity})
+            } else if ("random-community-gift" in data) {
+                randomcommunitygift = data["random-community-gift"]
+                user = randomcommunitygift.user
+                data = randomcommunitygift.data
+                packQuantity = randomcommunitygift.packQuantity
+                collectionName = randomcommunitygift.collectionName
+                SAMMI.triggerExt('LootsToolsStreamlootsSubscriptionCommunityGift', {"user": user, "giftee": giftee, "data": data, "packQuantity": packQuantity})
+            } else if ("newEvent" in data) {
+                card = data.newEvent
+                console.log(card)
+                user = card.user
+                cardName = card.cardName
+                data = card.data
+                console.log(card.data.fields)
+                fields = {}
+                for (fieldNo in card.data.fields) {
+                    if (!(["rarity", "username"].includes(card.data.fields[fieldNo].name))) {
+                        if ("value" in card.data.fields[fieldNo]) {
+                            fields[card.data.fields[fieldNo].name] = card.data.fields[fieldNo].value
+                        }
+                    }
+                }
+                SAMMI.triggerExt('LootsToolsStreamlootsCard', {"user": user, "cardName": cardName, "data": data, "fields": fields})
+            } else if ("subscription" in data) {
+                subscription = data.subscription
+                user = subscription.user
+                data = subscription.data
+                SAMMI.triggerExt('LootsToolsStreamlootsSubscription', {"user": user, "data": data})
+            } else if ("communityGiftSubscription" in data) {
+                communityGiftSubscription = data.communityGiftSubscription
+                user = communityGiftSubscription.user
+                data = communityGiftSubscription.data
+                SAMMI.triggerExt('LootsToolsStreamlootsCommunityGiftSubscription', {"user": user, "data": data})
+            } else if ("giftSubscription" in data) {
+                giftSubscription = data.giftSubscription
+                user = giftSubscription.gifter
+                giftee = giftSubscription.giftee
+                data = giftSubscription.data
+                SAMMI.triggerExt('LootsToolsStreamlootsSubscriptionGift', {"user": user, "giftee": giftee, "data": data})
+            } else if ("reaction" in data) {
+                reaction = data.reaction
+                user = reaction.user
+                reactionName = reaction.reactionName
+                videoUrl = ("videoUrl" in reaction) ? reaction.videoUrl : ""
+                imageUrl = ("imageUrl" in reaction) ? reaction.imageUrl : ""
+                data = reaction.data
+                SAMMI.triggerExt('LootsToolsStreamlootsReaction', {"user": user, "reactionName": reactionName, "videoUrl": videoUrl, "imageUrl": imageUrl, "data": data})
+            } else if ("cEvent" in data) {
+                cEvent = data.cEvent
+                name = cEvent.name
+                data = cEvent.data
+                SAMMI.triggerExt('LootsToolsCustomEvent', {"name": name, "data": data})
+            }
+        } catch (error) {
+
+        }
+    };
+}
+connecttolt()
+[insert_over]
+{ "deck_data": "{ \"background_color\": 4210752.0, \"on\": 1.0, \"grid_y\": 11.0, \"snap_grid\": true, \"lb_version\": \"2022.4.1\", \"background_image\": \"\", \"encrypted\": false, \"adaptive_resizing\": true, \"unique_id\": \"20220826191658527364089\", \"button_list\": [ { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"On Streamloots Card Redemption\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsStreamlootsCard\\\" when a Streamloots Card is played.\\nEste botón es llamado por \\\"LootsToolsStreamlootsCard\\\" cuando una Carta de Streamloots se juega.\", \"v0\": 8.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"user\\\" is a String, and it contains the username of who used the Card.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien haya usado la Carta.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 19.0, \"b0\": \"\\\"fields\\\" is an Object, and it contains all the user-written fields of the Card.\\n\\\"fields\\\" es un Objeto, y contiene todos los campos rellenados por el usuario al usar la Carta.\", \"v0\": 1.0 }, { \"b1\": \"fields\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"fields\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 5.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 19.0, \"b0\": \"\\\"cardName\\\" is a String, and it contains the name of the Card Played.\\n\\\"cardName\\\" es una String, y contiene el nombre de la Carta jugada.\", \"v0\": 1.0 }, { \"b1\": \"cardName\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 6.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"cardName\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 7.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 8.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.0, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsStreamlootsCard\", \"group_id\": \"\", \"button_id\": \"ID8\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID8\", \"button_duration\": 0.0, \"y\": 0.090909090909090911614143237784447, \"switch_deck\": \"\", \"height\": 0.27272727272727276259800532898225, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": true, \"text\": \"On Streamloots Pack Purchase\\n\\n(Needs Loot's Tools Plus)\", \"release_duration\": 0.0, \"queueable\": false, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsStreamlootsPurchase\\\" when a Streamloots Pack is bought.\\nEste botón es llamado por \\\"LootsToolsStreamlootsPurchase\\\" cuando un Cofre de Streamloots se compra.\", \"v0\": 8.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"user\\\" is a String, and it contains the username of who bought the Pack.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien haya comprado el Cofre.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 19.0, \"b0\": \"\\\"packQuantity\\\" is a String, and it contains the amount of Packs bought.\\n\\\"packQuantity\\\" es una String, y contiene la cantidad de Cofres comprados.\", \"v0\": 1.0 }, { \"b1\": \"packQuantity\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"packQuantity\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 5.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 19.0, \"b0\": \"\\\"collectionName\\\" is a String, and it contains the name of the Pack's Collection.\\n\\\"collectionName\\\" es una String, y contiene el nombre de la Colección de la Carta.\", \"v0\": 1.0 }, { \"b1\": \"collectionName\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 6.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"collectionName\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 7.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 8.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.0, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsStreamlootsPurchase\", \"group_id\": \"\", \"button_id\": \"ID20\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": false, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID20\", \"button_duration\": 0.0, \"y\": 0.36363636363636364645657295113779, \"switch_deck\": \"\", \"height\": 0.27272727272727276259800532898225, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"On Streamloots Subscription\\n\\n(Needs Loot's Tools Plus)\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsStreamlootsSubscription\\\" when someone subscribes on Streamloots.\\nEste botón es llamado por \\\"LootsToolsStreamlootsSubscription\\\" cuando alguien se suscribe en Streamloots.\", \"v0\": 4.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"user\\\" is a String, and it contains the username of who subscribed.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien se haya suscrito.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.0, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsStreamlootsSubscription\", \"group_id\": \"\", \"button_id\": \"ID21\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID21\", \"button_duration\": 0.0, \"y\": 0.63636363636363635354342704886221, \"switch_deck\": \"\", \"height\": 0.27272727272727276259800532898225, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"On Streamloots Reaction\\n\\n(Needs Loot's Tools Plus)\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsStreamlootsReaction\\\" when someone sends a Reaction on Streamloots.\\nEste botón es llamado por \\\"LootsToolsStreamlootsReaction\\\" cuando alguien usa una Reacción en Streamloots.\", \"v0\": 9.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"user\\\" is a String, and it contains the username of who used the Reaction.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien haya usado la Reacción.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"reactionName\\\" is a String, and it contains the name of the Reaction.\\n\\\"reactionName\\\" es una String, y contiene el nombre de la Reacción.\", \"v0\": 1.0 }, { \"b1\": \"reactionName\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"reactionName\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 5.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"videoUrl\\\" and \\\"imageUrl\\\" are Strings, and they contain the URL of the video or image of the Reaction.\\n\\\"videoUrl\\\" y \\\"imageUrl\\\" son Strings, y contienen la URL del video o imagen de la Reacción.\", \"v0\": 2.0 }, { \"b1\": \"videoUrl\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 6.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"videoUrl\" }, { \"b1\": \"imageUrl\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 7.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"imageUrl\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 8.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 9.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.20000000000000001110223024625157, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsStreamlootsReaction\", \"group_id\": \"\", \"button_id\": \"ID22\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID22\", \"button_duration\": 0.0, \"y\": 0.090909090909090911614143237784447, \"switch_deck\": \"\", \"height\": 0.27272727272727270708685409772443, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"On Streamloots Pack Gift\\n\\n(Needs Loot's Tools Plus)\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsStreamlootsGift\\\" when a Streamloots Pack is gifted.\\nEste botón es llamado por \\\"LootsToolsStreamlootsGift\\\" cuando un Cofre de Streamloots se regala.\", \"v0\": 10.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"user\\\" is a String, and it contains the username of who gifted the Pack.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien haya regalado el Cofre.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"giftee\\\" is a String, and it contains the username of who recieves the Pack.\\n\\\"giftee\\\" es una String, y contiene el nombre de Usuario de quien recibe el Cofre.\", \"v0\": 1.0 }, { \"b1\": \"giftee\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"giftee\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 5.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 19.0, \"b0\": \"\\\"packQuantity\\\" is a String, and it contains the amount of Packs gifted.\\n\\\"packQuantity\\\" es una String, y contiene la cantidad de Cofres regalados.\", \"v0\": 1.0 }, { \"b1\": \"packQuantity\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 6.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"packQuantity\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 7.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 19.0, \"b0\": \"\\\"collectionName\\\" is a String, and it contains the name of the Pack's Collection.\\n\\\"collectionName\\\" es una String, y contiene el nombre de la Colección de la Carta.\", \"v0\": 1.0 }, { \"b1\": \"collectionName\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 8.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"collectionName\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 9.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 10.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.20000000000000001110223024625157, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsStreamlootsGift\", \"group_id\": \"\", \"button_id\": \"ID23\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID23\", \"button_duration\": 0.0, \"y\": 0.36363636363636364645657295113779, \"switch_deck\": \"\", \"height\": 0.27272727272727276259800532898225, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"On Streamloots Subscription\\nGift\\n\\n(Needs Loot's Tools Plus)\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsStreamlootsSubscription\\\" when someone gifts a Streamloots Subscription.\\nEste botón es llamado por \\\"LootsToolsStreamlootsSubscription\\\" cuando alguien regala una Suscripción en Streamloots.\", \"v0\": 6.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"user\\\" is a String, and it contains the username of who gifted the subscription.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien haya regalado la suscripción.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"giftee\\\" is a String, and it contains the username of who gets the subscription.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien haya recibido la suscripción.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 5.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 6.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.20000000000000001110223024625157, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsStreamlootsSubscriptionGift\", \"group_id\": \"\", \"button_id\": \"ID24\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID24\", \"button_duration\": 0.0, \"y\": 0.63636363636363635354342704886221, \"switch_deck\": \"\", \"height\": 0.27272727272727276259800532898225, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"On Loot's Tools Custom Event\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsCustomEvent\\\" when a Custom Event is triggered on Loot's Tools.\\nEste botón es llamado por \\\"LootsToolsCustomEvent\\\" cuando un Evento Custom es llamado en Loot's Tools.\", \"v0\": 4.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"name\\\" is a String, and it contains the name of the Custom Event.\\n\\\"name\\\" es una String, y contiene el nombre del Evento Custom.\", \"v0\": 1.0 }, { \"b1\": \"name\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"name\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.40000000000000002220446049250313, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsCustomEvent\", \"group_id\": \"\", \"button_id\": \"ID25\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID25\", \"button_duration\": 0.0, \"y\": 0.090909090909090911614143237784447, \"switch_deck\": \"\", \"height\": 0.27272727272727276259800532898225, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"On Streamloots Pack\\nCommunity Gift\\n\\n(Needs Loot's Tools Plus)\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsStreamlootsCommunityGift\\\" when a Streamloots Pack is gifted to the Community.\\nEste botón es llamado por \\\"LootsToolsStreamlootsCommunityGift\\\" cuando un Cofre de Streamloots se regala a la Comunidad.\", \"v0\": 8.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"user\\\" is a String, and it contains the username of who gifted the Pack.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien haya regalado el Cofre.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 19.0, \"b0\": \"\\\"packQuantity\\\" is a String, and it contains the amount of Packs gifted.\\n\\\"packQuantity\\\" es una String, y contiene la cantidad de Cofres regalados.\", \"v0\": 1.0 }, { \"b1\": \"packQuantity\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"packQuantity\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 5.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 19.0, \"b0\": \"\\\"collectionName\\\" is a String, and it contains the name of the Pack's Collection.\\n\\\"collectionName\\\" es una String, y contiene el nombre de la Colección de la Carta.\", \"v0\": 1.0 }, { \"b1\": \"collectionName\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 6.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"collectionName\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 7.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 8.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.40000000000000002220446049250313, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsStreamlootsCommunityGift\", \"group_id\": \"\", \"button_id\": \"ID26\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID26\", \"button_duration\": 0.0, \"y\": 0.36363636363636364645657295113779, \"switch_deck\": \"\", \"height\": 0.27272727272727276259800532898225, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"On Streamloots Subscription\\nCommunity Gift\\n\\n(Needs Loot's Tools Plus)\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 6.0, \"obsid\": \"Main\", \"pos\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 17.0, \"b0\": \"This Button is triggered by \\\"LootsToolsStreamlootsCommunityGiftSubscription\\\" when someone gifts a Streamloots Subscription to the Community.\\nEste botón es llamado por \\\"LootsToolsStreamlootsCommunityGiftSubscription\\\" cuando alguien regala una Suscripción en Streamloots a la Comunidad.\", \"v0\": 4.0 }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 1.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 22.0, \"b0\": \"\\\"user\\\" is a String, and it contains the username of who gifted the Subscription.\\n\\\"user\\\" es una String, y contiene el nombre de Usuario de quien haya regalado la Suscripción.\", \"v0\": 1.0 }, { \"b1\": \"user\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 2.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"user\" }, { \"cmd\": 5.0, \"obsid\": \"Main\", \"pos\": 3.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 15.0, \"b0\": \"\\\"data\\\" is an Object and contains all the info about the Event.\\n\\\"data\\\" es un Objeto y contiene toda la info del Evento.\", \"v0\": 1.0 }, { \"b1\": \"data\", \"cmd\": 66.0, \"obsid\": \"Main\", \"pos\": 4.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": false, \"dis\": 0.0, \"xpan\": 0.0, \"b0\": \"data\" } ], \"press_type\": 0.0, \"x\": 0.40000000000000002220446049250313, \"border\": 1.0, \"image\": \"\", \"triggers\": [ { \"case_sensitive\": false, \"message\": \"LootsToolsStreamlootsSubscriptionCommunityGift\", \"group_id\": \"\", \"button_id\": \"ID27\", \"trg\": 12.0, \"allow_empty_wildcard\": false } ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.20000000000000001110223024625157, \"button_id\": \"ID27\", \"button_duration\": 0.0, \"y\": 0.63636363636363635354342704886221, \"switch_deck\": \"\", \"height\": 0.27272727272727276259800532898225, \"release_list\": [ ], \"functions\": 81, \"stretch\": 0.0 }, { \"color\": 0.0, \"persistent\": 1.0, \"text\": \"\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ ], \"press_type\": 0.0, \"x\": 0.59999999999999997779553950749687, \"border\": 2.0, \"image\": \"\", \"triggers\": [ ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.06666666666666666574148081281237, \"button_id\": \"ID28\", \"button_duration\": 0.0, \"y\": 0.090909090909090911614143237784447, \"switch_deck\": \"\", \"height\": 0.81818181818181812126056229317328, \"release_list\": [ ], \"functions\": 64.0, \"stretch\": 0.0 }, { \"color\": 12632256.0, \"persistent\": 1.0, \"text\": \"Test a Streamloots Card\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ { \"cmd\": 0.0, \"obsid\": \"Main\", \"pos\": 0.0, \"event\": 0.0, \"vis\": 1.0, \"ms\": 0.0, \"sel\": 0.0, \"dis\": 0.0, \"xpan\": 0.0, \"extcmd\": \"Loot's Tools: Trigger Event\", \"ext\": \"SAMMI Bridge\" } ], \"press_type\": 0.0, \"x\": 0.66666666666666662965923251249478, \"border\": 2.0, \"image\": \"\", \"triggers\": [ ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 0.33333333333333325931846502498956, \"button_id\": \"ID29\", \"button_duration\": 0.0, \"y\": 0.36363636363636364645657295113779, \"switch_deck\": \"\", \"height\": 0.27272727272727270708685409772443, \"release_list\": [ ], \"functions\": 65.0, \"stretch\": 0.0 }, { \"color\": 11993196.0, \"persistent\": 1.0, \"text\": \"MAKE SURE YOU HAVE LOOT'S TOOLS RUNNING\\nOR ELSE NOTHING HERE WILL WORK\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ ], \"press_type\": 0.0, \"x\": 0.0, \"border\": 2.0, \"image\": \"\", \"triggers\": [ ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 1.0, \"button_id\": \"ID31\", \"button_duration\": 0.0, \"y\": 0.0, \"switch_deck\": \"\", \"height\": 0.090909090909090883858567622155533, \"release_list\": [ ], \"functions\": 64.0, \"stretch\": false }, { \"color\": 11993196.0, \"persistent\": 1.0, \"text\": \"ASEGÚRATE DE TENER LOOT'S TOOLS CORRIENDO\\nO NADA DE AQUÍ FUNCIONARÁ\", \"release_duration\": 0.0, \"queueable\": 0.0, \"command_list\": [ ], \"press_type\": 0.0, \"x\": 0.0, \"border\": 2.0, \"image\": \"\", \"triggers\": [ ], \"group_id\": \"\", \"overlappable\": 0.0, \"init_variable\": \"\", \"deck\": 4.0, \"width\": 1.0, \"button_id\": \"ID35\", \"button_duration\": 0.0, \"y\": 0.90909090909090906063028114658664, \"switch_deck\": \"\", \"height\": 0.090909090909090883858567622155533, \"release_list\": [ ], \"functions\": 64.0, \"stretch\": false } ], \"deck_name\": \"Loot's Tools SAMMI Bridge Showcase Deck\", \"grid_x\": 15.0, \"stretch\": 0.0 }", "unique_id": "20220826191658527364089", "deck_verification_code": "407cf4e0b33a565414be6c9b3cc292e4d5c10745", "include_image": { } }
