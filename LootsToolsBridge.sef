@@ -88,15 +88,23 @@ case "Loot's Tools: Call SAMMI Event":{
     console.log(SAMMIJSON)
     id = SAMMIJSON.id
     eventData = SAMMIJSON.eventData
-    LootsToolsWS.send(JSON.stringify([
+    LootsToolsWS.send(JSON.stringify({"cEventSend": [
         {
             "eventName": "sammiEvent",
             "eventData": {
                 "id": id,
                 "eventData": eventData,
             },
-        }
-    ]))
+        },
+        {
+            "eventName": "sammiEventID",
+            "eventData": id
+        },
+        {
+            "eventName": "sammiEventData",
+            "eventData": eventData
+        },
+    ]}))
 } break
 [insert_script]
 var cards = []
