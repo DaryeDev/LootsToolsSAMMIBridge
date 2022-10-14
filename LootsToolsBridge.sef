@@ -113,6 +113,7 @@ var cEvents = []
 var LootsToolsWS = false
 var closingLootsToolsWS = false
 function connecttolt(reconnect=false) {
+    console.log("Connecting to Loot's Tools...")
     if (reconnect) {
         closingLootsToolsWS = true
     }
@@ -137,7 +138,6 @@ function connecttolt(reconnect=false) {
 	//notice that connection is established
 	LootsToolsWS.onopen = function (event) {
         LootsToolsWS.send("plsLootsTools")
-        SAMMI.alert("Connected to Loot's Tools Desktop")
         closingLootsToolsWS = false
 	};
 
@@ -161,6 +161,7 @@ function connecttolt(reconnect=false) {
                     event: ['Event to trigger', 18, 0, null, cEvents.concat(cards)],
                 });
             } else if ("plugins" in data) {
+                SAMMI.alert("Connected to Loot's Tools Desktop")
                 cEvents = []
                 eventValues.cEvents = []
                 for (extensionNo in data.plugins) {
